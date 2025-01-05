@@ -3,12 +3,14 @@
 Welcome to Flask
 ================
 
-.. image:: _static/flask-logo.png
-    :alt: Flask: web development, one drop at a time
+.. image:: _static/flask-horizontal.png
     :align: center
-    :target: https://palletsprojects.com/p/flask/
 
-Welcome to Flask's documentation. Get started with :doc:`installation`
+Welcome to Flask's documentation. Flask is a lightweight WSGI web application framework.
+It is designed to make getting started quick and easy, with the ability to scale up to
+complex applications.
+
+Get started with :doc:`installation`
 and then get an overview with the :doc:`quickstart`. There is also a
 more detailed :doc:`tutorial/index` that shows how to create a small but
 complete application with Flask. Common patterns are described in the
@@ -16,28 +18,26 @@ complete application with Flask. Common patterns are described in the
 component of Flask in detail, with a full reference in the :doc:`api`
 section.
 
-Flask depends on the `Jinja`_ template engine and the `Werkzeug`_ WSGI
-toolkit. The documentation for these libraries can be found at:
+Flask depends on the `Werkzeug`_ WSGI toolkit, the `Jinja`_ template engine, and the
+`Click`_ CLI toolkit. Be sure to check their documentation as well as Flask's when
+looking for information.
 
-- `Jinja documentation <https://jinja.palletsprojects.com/>`_
-- `Werkzeug documentation <https://werkzeug.palletsprojects.com/>`_
-
-.. _Jinja: https://www.palletsprojects.com/p/jinja/
-.. _Werkzeug: https://www.palletsprojects.com/p/werkzeug/
+.. _Werkzeug: https://werkzeug.palletsprojects.com
+.. _Jinja: https://jinja.palletsprojects.com
+.. _Click: https://click.palletsprojects.com
 
 
 User's Guide
 ------------
 
-This part of the documentation, which is mostly prose, begins with some
-background information about Flask, then focuses on step-by-step
-instructions for web development with Flask.
+Flask provides configuration and conventions, with sensible defaults, to get started.
+This section of the documentation explains the different parts of the Flask framework
+and how they can be used, customized, and extended. Beyond Flask itself, look for
+community-maintained extensions to add even more functionality.
 
 .. toctree::
    :maxdepth: 2
 
-   foreword
-   advanced_foreword
    installation
    quickstart
    tutorial/index
@@ -49,6 +49,7 @@ instructions for web development with Flask.
    config
    signals
    views
+   lifecycle
    appcontext
    reqcontext
    blueprints
@@ -57,6 +58,7 @@ instructions for web development with Flask.
    server
    shell
    patterns/index
+   web-security
    deploying/index
    async-await
 
@@ -76,14 +78,10 @@ method, this part of the documentation is for you.
 Additional Notes
 ----------------
 
-Design notes, legal information and changelog are here for the interested.
-
 .. toctree::
    :maxdepth: 2
 
    design
-   htmlfaq
-   security
    extensiondev
    contributing
    license

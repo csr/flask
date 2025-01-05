@@ -184,14 +184,8 @@ context is active when a request context is, or when a CLI command is
 run. If you're storing something that should be closed, use
 :meth:`~flask.Flask.teardown_appcontext` to ensure that it gets closed
 when the application context ends. If it should only be valid during a
-request, or would not be used in the CLI outside a reqeust, use
+request, or would not be used in the CLI outside a request, use
 :meth:`~flask.Flask.teardown_request`.
-
-An older technique for storing context data was to store it on
-``_app_ctx_stack.top`` or ``_request_ctx_stack.top``. However, this just
-moves the same namespace collision problem elsewhere (although less
-likely) and modifies objects that are very internal to Flask's
-operations. Prefer storing data under a unique name in ``g``.
 
 
 Views and Models
@@ -218,7 +212,7 @@ class's :meth:`~views.View.as_view` method.
         def __init__(self, model):
             self.model = model
 
-        def get(id):
+        def get(self, id):
             post = self.model.query.get(id)
             return jsonify(post.to_json())
 
@@ -299,9 +293,9 @@ ecosystem remain consistent and compatible.
     any particular version scheme, but should use lower bounds to
     indicate minimum compatibility support. For example,
     ``sqlalchemy>=1.4``.
-9.  Indicate the versions of Python supported using
-    ``python_requires=">=version"``. Flask itself supports Python >=3.7
-    as of December 2021, but this will update over time.
+9.  Indicate the versions of Python supported using ``python_requires=">=version"``.
+    Flask itself supports Python >=3.9 as of October 2024, and this will update
+    over time.
 
 .. _PyPI: https://pypi.org/search/?c=Framework+%3A%3A+Flask
 .. _Discord Chat: https://discord.gg/pallets

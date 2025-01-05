@@ -256,6 +256,11 @@ def test_dotted_name_not_allowed(app, client):
         flask.Blueprint("app.ui", __name__)
 
 
+def test_empty_name_not_allowed(app, client):
+    with pytest.raises(ValueError):
+        flask.Blueprint("", __name__)
+
+
 def test_dotted_names_from_app(app, client):
     test = flask.Blueprint("test", __name__)
 
@@ -629,10 +634,11 @@ def test_add_template_test_with_name_and_template(app, client):
 def test_context_processing(app, client):
     answer_bp = flask.Blueprint("answer_bp", __name__)
 
-    template_string = lambda: flask.render_template_string(  # noqa: E731
-        "{% if notanswer %}{{ notanswer }} is not the answer. {% endif %}"
-        "{% if answer %}{{ answer }} is the answer.{% endif %}"
-    )
+    def template_string():
+        return flask.render_template_string(
+            "{% if notanswer %}{{ notanswer }} is not the answer. {% endif %}"
+            "{% if answer %}{{ answer }} is the answer.{% endif %}"
+        )
 
     # App global context processor
     @answer_bp.app_context_processor
@@ -722,12 +728,6 @@ def test_app_request_processing(app, client):
     bp = flask.Blueprint("bp", __name__)
     evts = []
 
-    with pytest.deprecated_call():
-
-        @bp.before_app_first_request
-        def before_first_request():
-            evts.append("first")
-
     @bp.before_app_request
     def before_app():
         evts.append("before")
@@ -755,12 +755,12 @@ def test_app_request_processing(app, client):
     # first request
     resp = client.get("/").data
     assert resp == b"request|after"
-    assert evts == ["first", "before", "after", "teardown"]
+    assert evts == ["before", "after", "teardown"]
 
     # second request
     resp = client.get("/").data
     assert resp == b"request|after"
-    assert evts == ["first"] + ["before", "after", "teardown"] * 2
+    assert evts == ["before", "after", "teardown"] * 2
 
 
 def test_app_url_processors(app, client):
@@ -948,6 +948,47 @@ def test_nesting_url_prefixes(
 
     response = client.get("/parent/child/")
     assert response.status_code == 200
+
+
+def test_nesting_subdomains(app, client) -> None:
+    app.subdomain_matching = True
+    app.config["SERVER_NAME"] = "example.test"
+    client.allow_subdomain_redirects = True
+
+    parent = flask.Blueprint("parent", __name__)
+    child = flask.Blueprint("child", __name__)
+
+    @child.route("/child/")
+    def index():
+        return "child"
+
+    parent.register_blueprint(child)
+    app.register_blueprint(parent, subdomain="api")
+
+    response = client.get("/child/", base_url="http://api.example.test")
+    assert response.status_code == 200
+
+
+def test_child_and_parent_subdomain(app, client) -> None:
+    app.subdomain_matching = True
+    app.config["SERVER_NAME"] = "example.test"
+    client.allow_subdomain_redirects = True
+
+    parent = flask.Blueprint("parent", __name__)
+    child = flask.Blueprint("child", __name__, subdomain="api")
+
+    @child.route("/")
+    def index():
+        return "child"
+
+    parent.register_blueprint(child)
+    app.register_blueprint(parent, subdomain="parent")
+
+    response = client.get("/", base_url="http://api.parent.example.test")
+    assert response.status_code == 200
+
+    response = client.get("/", base_url="http://parent.example.test")
+    assert response.status_code == 404
 
 
 def test_unique_blueprint_names(app, client) -> None:

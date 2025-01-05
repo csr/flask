@@ -1,5 +1,6 @@
 # This file was part of Flask-CLI and was modified under the terms of
 # its Revised BSD License. Copyright © 2015 CERN.
+import importlib.metadata
 import os
 import platform
 import ssl
@@ -17,7 +18,6 @@ from flask import Blueprint
 from flask import current_app
 from flask import Flask
 from flask.cli import AppGroup
-from flask.cli import DispatchingApp
 from flask.cli import find_best_app
 from flask.cli import FlaskGroup
 from flask.cli import get_version
@@ -229,10 +229,6 @@ def test_locate_app_suppress_raise(test_apps):
 
 
 def test_get_version(test_apps, capsys):
-    from flask import __version__ as flask_version
-    from werkzeug import __version__ as werkzeug_version
-    from platform import python_version
-
     class MockCtx:
         resilient_parsing = False
         color = None
@@ -243,9 +239,9 @@ def test_get_version(test_apps, capsys):
     ctx = MockCtx()
     get_version(ctx, None, "test")
     out, err = capsys.readouterr()
-    assert f"Python {python_version()}" in out
-    assert f"Flask {flask_version}" in out
-    assert f"Werkzeug {werkzeug_version}" in out
+    assert f"Python {platform.python_version()}" in out
+    assert f"Flask {importlib.metadata.version('flask')}" in out
+    assert f"Werkzeug {importlib.metadata.version('werkzeug')}" in out
 
 
 def test_scriptinfo(test_apps, monkeypatch):
@@ -288,26 +284,6 @@ def test_scriptinfo(test_apps, monkeypatch):
     obj = ScriptInfo()
     app = obj.load_app()
     assert app.name == "testapp"
-
-
-@pytest.mark.xfail(platform.python_implementation() == "PyPy", reason="flaky on pypy")
-def test_lazy_load_error(monkeypatch):
-    """When using lazy loading, the correct exception should be
-    re-raised.
-    """
-
-    class BadExc(Exception):
-        pass
-
-    def bad_load():
-        raise BadExc
-
-    lazy = DispatchingApp(bad_load, use_eager_loading=False)
-
-    # reduce flakiness by waiting for the internal loading lock
-    with lazy._lock:
-        with pytest.raises(BadExc):
-            lazy._flush_bg_loading_exception()
 
 
 def test_app_cli_has_app_context(app, runner):
@@ -422,7 +398,12 @@ def test_flaskgroup_nested(app, runner):
 def test_no_command_echo_loading_error():
     from flask.cli import cli
 
-    runner = CliRunner(mix_stderr=False)
+    try:
+        runner = CliRunner(mix_stderr=False)
+    except (DeprecationWarning, TypeError):
+        # Click >= 8.2
+        runner = CliRunner()
+
     result = runner.invoke(cli, ["missing"])
     assert result.exit_code == 2
     assert "FLASK_APP" in result.stderr
@@ -432,7 +413,12 @@ def test_no_command_echo_loading_error():
 def test_help_echo_loading_error():
     from flask.cli import cli
 
-    runner = CliRunner(mix_stderr=False)
+    try:
+        runner = CliRunner(mix_stderr=False)
+    except (DeprecationWarning, TypeError):
+        # Click >= 8.2
+        runner = CliRunner()
+
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "FLASK_APP" in result.stderr
@@ -444,7 +430,13 @@ def test_help_echo_exception():
         raise Exception("oh no")
 
     cli = FlaskGroup(create_app=create_app)
-    runner = CliRunner(mix_stderr=False)
+
+    try:
+        runner = CliRunner(mix_stderr=False)
+    except (DeprecationWarning, TypeError):
+        # Click >= 8.2
+        runner = CliRunner()
+
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "Exception: oh no" in result.stderr
@@ -455,32 +447,17 @@ class TestRoutes:
     @pytest.fixture
     def app(self):
         app = Flask(__name__)
-        app.testing = True
-
-        @app.route("/get_post/<int:x>/<int:y>", methods=["GET", "POST"])
-        def yyy_get_post(x, y):
-            pass
-
-        @app.route("/zzz_post", methods=["POST"])
-        def aaa_post():
-            pass
-
+        app.add_url_rule(
+            "/get_post/<int:x>/<int:y>",
+            methods=["GET", "POST"],
+            endpoint="yyy_get_post",
+        )
+        app.add_url_rule("/zzz_post", methods=["POST"], endpoint="aaa_post")
         return app
 
     @pytest.fixture
     def invoke(self, app, runner):
         cli = FlaskGroup(create_app=lambda: app)
-        return partial(runner.invoke, cli)
-
-    @pytest.fixture
-    def invoke_no_routes(self, runner):
-        def create_app():
-            app = Flask(__name__, static_folder=None)
-            app.testing = True
-
-            return app
-
-        cli = FlaskGroup(create_app=create_app)
         return partial(runner.invoke, cli)
 
     def expect_order(self, order, output):
@@ -515,10 +492,30 @@ class TestRoutes:
         output = invoke(["routes", "--all-methods"]).output
         assert "GET, HEAD, OPTIONS, POST" in output
 
-    def test_no_routes(self, invoke_no_routes):
-        result = invoke_no_routes(["routes"])
+    def test_no_routes(self, runner):
+        app = Flask(__name__, static_folder=None)
+        cli = FlaskGroup(create_app=lambda: app)
+        result = runner.invoke(cli, ["routes"])
         assert result.exit_code == 0
         assert "No routes were registered." in result.output
+
+    def test_subdomain(self, runner):
+        app = Flask(__name__, static_folder=None)
+        app.add_url_rule("/a", subdomain="a", endpoint="a")
+        app.add_url_rule("/b", subdomain="b", endpoint="b")
+        cli = FlaskGroup(create_app=lambda: app)
+        result = runner.invoke(cli, ["routes"])
+        assert result.exit_code == 0
+        assert "Subdomain" in result.output
+
+    def test_host(self, runner):
+        app = Flask(__name__, static_folder=None, host_matching=True)
+        app.add_url_rule("/a", host="a", endpoint="a")
+        app.add_url_rule("/b", host="b", endpoint="b")
+        cli = FlaskGroup(create_app=lambda: app)
+        result = runner.invoke(cli, ["routes"])
+        assert result.exit_code == 0
+        assert "Host" in result.output
 
 
 def dotenv_not_available():
@@ -556,7 +553,7 @@ def test_load_dotenv(monkeypatch):
     # test env file encoding
     assert os.environ["HAM"] == "火腿"
     # Non existent file should not load
-    assert not load_dotenv("non-existent-file")
+    assert not load_dotenv("non-existent-file", load_defaults=False)
 
 
 @need_dotenv
@@ -698,3 +695,8 @@ def test_cli_empty(app):
 
     result = app.test_cli_runner().invoke(args=["blue", "--help"])
     assert result.exit_code == 2, f"Unexpected success:\n\n{result.output}"
+
+
+def test_run_exclude_patterns():
+    ctx = run_command.make_context("run", ["--exclude-patterns", __file__])
+    assert ctx.params["exclude_patterns"] == [__file__]
